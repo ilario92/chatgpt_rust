@@ -17,3 +17,4 @@ pub fn io_input() -> String {
     io::stdin().read_line(&mut input).expect("Error on read line");
     input
 }
+

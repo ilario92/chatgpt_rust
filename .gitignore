@@ -1,2 +1,4 @@
 /target
 /res/secret.json
+Cargo.lock
+/.idea/
