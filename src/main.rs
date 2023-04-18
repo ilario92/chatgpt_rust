@@ -2,13 +2,7 @@ use std::process::exit;
 use reqwest::{Client, Error};
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
-use chatgpt_rust::{get_api_key, io_input};
-
-#[derive(Serialize)]
-struct ChatRequest {
-    model: String,
-    messages: Vec<Message>,
-}
+use chatgpt_rust::{call_api, ChatRequest, generate_headers, generate_usage_url, init_app, io_input, Message, OpenAIConfig, Request};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct ChatCompletion {
@@ -34,18 +28,6 @@ struct Choice {
     index: i32,
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug)]
-struct Message {
-    role: String,
-    content: String,
-}
-
-#[derive(Clone)]
-struct OpenAIConfig {
-    model: Box<String>,
-    url: Box<String>,
-    key: Box<String>,
-}
 
 #[derive(Clone)]
 struct Context {
@@ -53,12 +35,22 @@ struct Context {
     token: i32,
 }
 
+
+#[derive(Deserialize)]
+struct CostsData {
+    total_usage: f32,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    let config = init_openai();
+    let config = init_app();
 
     println!("Chat with ChatGPT");
-    println!("Instruction\nnew \t create new session\nexit\t exit\ntoken\t token used");
+    println!("Instruction\n\
+    new \t create new session\n\
+    token\t Tokens spent in this runtime\n\
+    usage\t $$$ spent in this month\n\
+    exit\t exit");
     println!("---------------------------");
 
     let mut context = Context {
@@ -79,6 +71,9 @@ async fn main() -> Result<(), Error> {
             "token" => {
                 println!("in this session you have used: {} token", context.token)
             }
+            "usage" => {
+                usage_amount_gpt3(config.clone()).await?;
+            }
             _ => {
                 context.history = store_to_history(*context.history.clone(), "user", input);
                 let response = chat_with_gpt3(config.clone(), &mut context).await?;
@@ -87,18 +82,6 @@ async fn main() -> Result<(), Error> {
             }
         }
     }
-}
-
-fn init_openai() -> OpenAIConfig {
-    let config: OpenAIConfig;
-    let args: Vec<String> = std::env::args().collect();
-    if args.len() == 2 {
-        config = init(Some(args[1].to_string()));
-    } else {
-        println!("Non hai passato alcun parametro. Cerco in res/secret.json");
-        config = init(None);
-    }
-    config
 }
 
 async fn chat_with_gpt3(config: OpenAIConfig, mut context: &mut Context) -> Result<String, Error> {
@@ -126,6 +109,26 @@ async fn chat_with_gpt3(config: OpenAIConfig, mut context: &mut Context) -> Resu
     }
 }
 
+async fn usage_amount_gpt3(config: OpenAIConfig) -> Result<String, Error> {
+    let response = call_api(Request {
+        is_post: false,
+        url: generate_usage_url(),
+        headers: generate_headers(config),
+        chat_request: None,
+    }).await?;
+    //println!("{:?}", response.text().await); //DEBUG
+    if response.status() == 200
+    {
+        let cost_data: CostsData = response.json().await?;
+        let res = format!("$ {:.3}", (cost_data.total_usage / 100.0));
+        println!("{}", res);
+        Ok(res)
+    } else {
+        Err(response.status()).expect("Status code")
+    }
+}
+
+
 fn store_to_history(mut history: Vec<Message>, role: &str, message: String) -> Box<Vec<Message>> {
     history.push(Message {
         role: role.to_owned(),
@@ -138,21 +141,4 @@ fn init_history() -> Box<Vec<Message>> {
     store_to_history(vec![],
                      "system",
                      "Sei un assistente cordiale che rispondi a tutte le domande che ti vengono fatte".to_string())
-}
-
-fn init(apikey_console: Option<String>) -> OpenAIConfig {
-    let apikey: String;
-    if apikey_console.is_some()
-    {
-        apikey = apikey_console.unwrap();
-    } else {
-        apikey = get_api_key();
-    }
-
-    let config = OpenAIConfig {
-        model: Box::new("gpt-3.5-turbo".to_string()),
-        url: Box::new("https://api.openai.com/v1/chat/completions".to_string()),
-        key: Box::from(apikey),
-    };
-    config
 }
