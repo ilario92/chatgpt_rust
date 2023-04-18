@@ -1,7 +1,9 @@
 use std::process::exit;
 use reqwest::{Error};
 use serde::{Deserialize, Serialize};
-use chatgpt_rust::{call_api, ChatRequest, from_config_json, generate_headers, generate_usage_url, init_app, init_history, io_input, Message, OpenAIConfig, Request, store_to_history};
+use chatgpt_rust::{call_api, ChatRequest, from_config_json_or_default, generate_headers,
+                   generate_usage_url, init_app, init_history, io_input, Message, OpenAIConfig,
+                   Request, store_to_history};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct ChatCompletion {
@@ -90,16 +92,16 @@ async fn chat_with_gpt3(config: OpenAIConfig, mut context: &mut Context) -> Resu
 
     let response = call_api(Request {
         is_post: true,
-        url: from_config_json("url_chat"),
+        url: from_config_json_or_default("url_chat", "https://api.openai.com/v1/chat/completions"),
         headers: generate_headers(config),
         chat_request: Some(chat_request),
     }).await?;
     //println!("{:?}", response); //DEBUG
     if response.status() == 200
     {
-        let response: ChatCompletion = response.json().await?;
-        context.token = context.token + response.usage.total_tokens;
-        Ok(response.choices.first().unwrap().message.content.clone())
+        let chat_completion: ChatCompletion = response.json().await?;
+        context.token = context.token + chat_completion.usage.total_tokens;
+        Ok(chat_completion.choices.first().unwrap().message.content.clone())
     } else {
         Err(response.status()).expect("Status code")
     }

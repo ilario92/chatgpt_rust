@@ -32,13 +32,18 @@ pub struct OpenAIConfig {
     pub key: String,
 }
 
-pub fn from_config_json(string: &str) -> String {
+pub fn from_config_json_or_default(string: &str, default: &str) -> String {
     let file = fs::File::open("res/config.json")
         .expect("file exception");
     let json: serde_json::Value = serde_json::from_reader(file)
         .expect("file should be proper JSON");
-    json.get(string)
-        .expect(format!("{} not found!", string).as_str()).to_string().replace("\"", "")
+    if json.get(string).is_some()
+    {
+        return json.get(string).unwrap().to_string().replace("\"", "");
+    } else {
+        println!("{} not found!", string);
+        return default.to_string();
+    }
 }
 
 pub fn io_input() -> String {
@@ -48,7 +53,7 @@ pub fn io_input() -> String {
     input
 }
 
-pub fn format_date(date: DateTime<Local>) -> String
+fn format_date(date: DateTime<Local>) -> String
 {
     format!("{}", date.format("%Y-%m-%d"))
 }
@@ -80,7 +85,7 @@ pub fn generate_usage_url() -> String {
     let one_month_ago_date = today_date - Duration::days(30);
 
     format!("{}start_date={}&end_date={}",
-            from_config_json("url_usage"),
+            from_config_json_or_default("url_usage", "https://api.openai.com/dashboard/billing/usage?"),
             format_date(one_month_ago_date),
             format_date(today_date))
 }
@@ -90,12 +95,12 @@ pub fn init(apikey_console: Option<String>) -> OpenAIConfig {
     {
         apikey_console.unwrap()
     } else {
-        from_config_json("api_key")
+        from_config_json_or_default("api_key", "")
     };
 
     let config = OpenAIConfig {
-        model: from_config_json("model"),
-        url: from_config_json("url_chat"),
+        model: from_config_json_or_default("model", "gpt-3.5-turbo"),
+        url: from_config_json_or_default("url_chat", "https://api.openai.com/v1/chat/completions"),
         key: apikey,
     };
     config
