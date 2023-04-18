@@ -1,4 +1,4 @@
 /target
-/res/secret.json
+/res/config.json
 Cargo.lock
 /.idea/

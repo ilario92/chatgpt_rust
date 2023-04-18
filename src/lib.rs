@@ -27,19 +27,18 @@ pub struct Message {
 
 #[derive(Clone)]
 pub struct OpenAIConfig {
-    pub model: Box<String>,
-    pub url: Box<String>,
-    pub key: Box<String>,
+    pub model: String,
+    pub url: String,
+    pub key: String,
 }
 
-pub fn get_api_key() -> String {
-    let file = fs::File::open("res/secret.json")
-        .expect("file should open read only");
+pub fn from_config_json(string: &str) -> String {
+    let file = fs::File::open("res/config.json")
+        .expect("file exception");
     let json: serde_json::Value = serde_json::from_reader(file)
         .expect("file should be proper JSON");
-    let key = json.get("API_KEY").expect("API_KEK not found!").to_string();
-
-    key.replace("\"", "")
+    json.get(string)
+        .expect(format!("{} not found!", string).as_str()).to_string().replace("\"", "")
 }
 
 pub fn io_input() -> String {
@@ -71,7 +70,7 @@ pub async fn call_api(request: Request) -> Result<Response, Error>
 
 pub fn generate_headers(config: OpenAIConfig) -> HeaderMap {
     let mut headers = HeaderMap::new();
-    headers.insert(AUTHORIZATION, format!("Bearer {}", *config.key).parse().unwrap());
+    headers.insert(AUTHORIZATION, format!("Bearer {}", config.key).parse().unwrap());
     headers.insert("Content-Type", "application/json".parse().unwrap());
     headers
 }
@@ -80,24 +79,40 @@ pub fn generate_usage_url() -> String {
     let today_date = Local::now();
     let one_month_ago_date = today_date - Duration::days(30);
 
-    format!("https://api.openai.com/dashboard/billing/usage?start_date={}&end_date={}",
+    format!("{}start_date={}&end_date={}",
+            from_config_json("url_usage"),
             format_date(one_month_ago_date),
             format_date(today_date))
 }
+
 pub fn init(apikey_console: Option<String>) -> OpenAIConfig {
     let apikey: String = if apikey_console.is_some()
     {
         apikey_console.unwrap()
     } else {
-        get_api_key()
+        from_config_json("api_key")
     };
 
     let config = OpenAIConfig {
-        model: Box::new("gpt-3.5-turbo".to_string()),
-        url: Box::new("https://api.openai.com/v1/chat/completions".to_string()),
-        key: Box::from(apikey),
+        model: from_config_json("model"),
+        url: from_config_json("url_chat"),
+        key: apikey,
     };
     config
+}
+
+pub fn store_to_history(mut history: Vec<Message>, role: &str, message: String) -> Box<Vec<Message>> {
+    history.push(Message {
+        role: role.to_owned(),
+        content: message.to_owned(),
+    });
+    Box::new(history)
+}
+
+pub fn init_history() -> Box<Vec<Message>> {
+    store_to_history(vec![],
+                     "system",
+                     "Sei un assistente cordiale che rispondi a tutte le domande che ti vengono fatte".to_string())
 }
 
 pub fn init_app() -> OpenAIConfig {
@@ -106,7 +121,7 @@ pub fn init_app() -> OpenAIConfig {
     if args.len() == 2 {
         config = init(Some(args[1].to_string()));
     } else {
-        println!("Non hai passato alcun parametro. Cerco in res/secret.json");
+        println!("API KEY not found in args. Search res/config.json");
         config = init(None);
     }
     config

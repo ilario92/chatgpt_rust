@@ -1,0 +1,6 @@
+{
+  "api_key": "YOUR API KEY",
+  "url_chat": "https://api.openai.com/v1/chat/completions",
+  "url_usage": "https://api.openai.com/dashboard/billing/usage?",
+  "model": "gpt-3.5-turbo"
+}
