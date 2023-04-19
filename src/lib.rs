@@ -37,12 +37,12 @@ pub fn from_config_json_or_default(string: &str, default: &str) -> String {
         .expect("file exception");
     let json: serde_json::Value = serde_json::from_reader(file)
         .expect("file should be proper JSON");
-    if json.get(string).is_some()
+    return if json.get(string).is_some()
     {
-        return json.get(string).unwrap().to_string().replace("\"", "");
+        json.get(string).unwrap().to_string().replace("\"", "")
     } else {
         println!("{} not found!", string);
-        return default.to_string();
+        default.to_string()
     }
 }
 
@@ -117,7 +117,13 @@ pub fn store_to_history(mut history: Vec<Message>, role: &str, message: String) 
 pub fn init_history() -> Box<Vec<Message>> {
     store_to_history(vec![],
                      "system",
-                     "Sei un assistente cordiale che rispondi a tutte le domande che ti vengono fatte".to_string())
+                     from_config_json_or_default("system", "Sei un assistente cordiale che risponde a tutte le domande che ti vengono poste"))
+}
+
+pub fn change_context(context: String) -> Box<Vec<Message>> {
+    store_to_history(vec![],
+                     "system",
+                     context)
 }
 
 pub fn init_app() -> OpenAIConfig {

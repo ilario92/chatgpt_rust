@@ -1,9 +1,8 @@
 use std::process::exit;
 use reqwest::{Error};
 use serde::{Deserialize, Serialize};
-use chatgpt_rust::{call_api, ChatRequest, from_config_json_or_default, generate_headers,
-                   generate_usage_url, init_app, init_history, io_input, Message, OpenAIConfig,
-                   Request, store_to_history};
+use termion::{color, style};
+use chatgpt_rust::{call_api, change_context, ChatRequest, from_config_json_or_default, generate_headers, generate_usage_url, init_app, init_history, io_input, Message, OpenAIConfig, Request, store_to_history};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct ChatCompletion {
@@ -45,11 +44,12 @@ async fn main() -> Result<(), Error> {
     let config = init_app();
 
     println!("Chat with ChatGPT");
-    println!("Instruction\n\
-    new \t create new session\n\
-    token\t Tokens spent in this runtime\n\
-    usage\t $$$ spent in this month\n\
-    exit\t exit");
+    println!("\t\tInstruction\n\
+    new \t\t Create new session\n\
+    context \t Set context for new session\n\
+    token\t\t Tokens spent in this runtime\n\
+    usage\t\t $$$ spent in this month\n\
+    exit\t\t exit");
     println!("---------------------------");
 
     let mut context = Context {
@@ -68,6 +68,10 @@ async fn main() -> Result<(), Error> {
                 context.history = init_history();
                 println!("-- New Session --");
             }
+            "context" => {
+                println!("-- Change Context --");
+                context.history = change_context(io_input().trim().replace("\n", ""));
+            }
             "token" => {
                 println!("in this session you have used: {} token", context.token)
             }
@@ -77,7 +81,12 @@ async fn main() -> Result<(), Error> {
             _ => {
                 context.history = store_to_history(*context.history.clone(), "user", input);
                 let response = chat_with_gpt3(config.clone(), &mut context).await?;
-                println!("Assistente: {}", response);
+                println!("{}Assistente: {}{}{}",
+                         style::Italic,
+                         color::Fg(color::Green),
+                         response,
+                         style::Reset,
+                );
                 context.history = store_to_history(*context.history.clone(), "assistant", response);
             }
         }
